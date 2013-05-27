@@ -16,12 +16,14 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import urllib2
+
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import urllib2
 from urlresolver import common
+
 
 # Custom imports
 import re
@@ -38,30 +40,27 @@ class FlashxResolver(Plugin, UrlResolver, PluginSettings):
         #e.g. http://flashx.tv/player/embed_player.php?vid=1503&width=600&height=370&autoplay=no
         self.pattern = 'http://((?:www.|play.)?flashx.tv)/(?:player/embed_player.php\?vid=|player/embed.php\?vid=|video/)([0-9A-Z]+)'
 
-
     def get_media_url(self, host, media_id):
         web_url = self.get_url(host, media_id)
         try:
             html = self.net.http_GET(web_url).content
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
-                                    (e.code, web_url))
-            return False
+                                   (e.code, web_url))
+            return self.unresolvable(3, str(e))
         #grab stream url
         sPatternHQ = "var hq_video_file\s*=\s*'([^']+)'"        # .mp4
         #sPatternLQ = "var normal_video_file\s*=\s*'([^']+)'"    # .flv old
         sPatternLQ = "\?hash=([^'|&]+)"
         r = re.search(sPatternLQ, html)
         if r:
-            print r.group(1)
             media_id = r.group(1)
-            #return r.group(1)
         try:
-            html = self.net.http_GET("http://play.flashx.tv/nuevo/player/cst.php?hash="+media_id).content
+            html = self.net.http_GET("http://play.flashx.tv/nuevo/player/cst.php?hash=" + media_id).content
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
-                                    (e.code, web_url))
-            return False
+                                   (e.code, web_url))
+            return self.unresolvable(3, str(e))
         pattern = "<file>(.*?)</file>"
         r = re.search(pattern, html)
         if r:
@@ -70,7 +69,7 @@ class FlashxResolver(Plugin, UrlResolver, PluginSettings):
         return False
 
     def get_url(self, host, media_id):
-            return 'http://www.flashx.tv/player/embed_player.php?vid=%s' % (media_id)
+        return 'http://www.flashx.tv/player/embed_player.php?vid=%s' % media_id
 
     def get_host_and_id(self, url):
         r = re.search(self.pattern, url)

@@ -1,4 +1,4 @@
-'''
+"""
 dailymotion urlresolver plugin
 Copyright (C) 2011 cyrus007
 
@@ -14,16 +14,19 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-'''
+"""
+
+import re
+import urllib2
 
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import re
-import urllib2
 from urlresolver import common
+#TODO: switch this to jsunpack lib
 from vidxden import unpack_js
+
 
 class HostingcupResolver(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver, PluginSettings]
@@ -35,7 +38,6 @@ class HostingcupResolver(Plugin, UrlResolver, PluginSettings):
         self.net = Net()
         self.pattern = 'http://(www.)?hostingcup.com/[0-9A-Za-z]+'
 
-
     def get_media_url(self, host, media_id):
         web_url = self.get_url(host, media_id)
         try:
@@ -43,15 +45,17 @@ class HostingcupResolver(Plugin, UrlResolver, PluginSettings):
         except urllib2.URLError, e:
             common.addon.log_error(self.name + '- got http error %d fetching %s' %
                                    (e.code, web_url))
-            return False
+            return self.unresolvable(3, str(e))
 
+        # TODO: Can the regex be adjusted instead of splitting/joining the whole page?
         page = ''.join(html.splitlines()).replace('\t','')
         r = re.search("return p\}\(\'(.+?)\',\d+,\d+,\'(.+?)\'", page)
         if r:
             p, k = r.groups()
         else:
-            common.addon.log_error(self.name + '- packed javascript embed code not found')
-            return False
+            msg = '%s: packed javascript embed code not found' % self.name
+            common.addon.log_error(msg)
+            return self.unresolvable(0, msg)
 
         decrypted_data = unpack_js(p, k)
         r = re.search('file.\',.\'(.+?).\'', decrypted_data)
@@ -60,14 +64,14 @@ class HostingcupResolver(Plugin, UrlResolver, PluginSettings):
         if r:
             stream_url = r.group(1)
         else:
-            common.addon.log_error(self.name + '- stream url not found')
-            return False
+            msg = '%s: stream url not found' % self.name
+            common.addon.log_error(msg)
+            return self.unresolvable(0, msg)
 
         return stream_url
 
     def get_url(self, host, media_id):
         return 'http://vidpe.com/%s' % media_id
-        
         
     def get_host_and_id(self, url):
         r = re.search('//(.+?)/([0-9A-Za-z]+)', url)

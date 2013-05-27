@@ -16,7 +16,11 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 """
 
-import re, os, urllib2
+import re
+import os
+import urllib
+import urllib2
+
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import SiteAuth
 from urlresolver.plugnplay.interfaces import PluginSettings
@@ -24,17 +28,17 @@ from urlresolver.plugnplay import Plugin
 from urlresolver import common
 from t0mm0.common.net import Net
 
-#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDMKR, ELDORADO
+
+#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDSMKR, ELDORADO
 error_logo = os.path.join(common.addon_path, 'resources', 'images', 'redx.png')
 
-net = Net()
 
 class veeHDResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
     implements = [UrlResolver, SiteAuth, PluginSettings]
     name = "veeHD"
     profile_path = common.profile_path
     cookie_file = os.path.join(profile_path, '%s.cookies' % name)
-    
+
     def __init__(self):
         p = self.get_setting('priority') or 1
         self.priority = int(p)
@@ -51,7 +55,7 @@ class veeHDResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
             html = self.net.http_GET(web_url).content
 
             fragment = re.search('playeriframe".+?attr.+?src : "(.+?)"', html)
-            frag = 'http://%s%s'%(host,fragment.group(1))
+            frag = 'http://%s%s' % (host, fragment.group(1))
 
             html = self.net.http_GET(frag).content
 
@@ -62,41 +66,34 @@ class veeHDResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
                 message = self.name + '- 1st attempt at finding the stream_url failed probably an Mp4, finding Mp4'
                 common.addon.log_debug(message)
                 a = re.search('"url":"(.+?)"', html)
-                r=urllib.unquote(a.group(1))
+                r = urllib.unquote(a.group(1))
                 if r:
-                    stream_url = r
+                    return r
                 else:
-                    raise Exception ('File Not Found or removed')
-            return stream_url
+                    return self.unresolvable()
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
                                    (e.code, web_url))
-            common.addon.show_small_popup('Error','Http error: '+str(e), 8000, error_logo)
-            return False
+            return self.unresolvable(3, str(e))
         except Exception, e:
             common.addon.log('**** VeeHD Error occured: %s' % e)
-            common.addon.show_small_popup(title='[B][COLOR white]VEEHD[/COLOR][/B]', msg='[COLOR red]%s[/COLOR]' % e, delay=5000, image=error_logo)
-            return False
-        
-    
-        
+            return self.unresolvable(0, str(e))
+
     def get_url(self, host, media_id):
         return 'http://veehd.com/video/%s' % media_id
-                
-        
+
     def get_host_and_id(self, url):
         r = re.search('//(.+?)/video/([0-9A-Za-z]+)', url)
         if r:
             return r.groups()
-        else:
-            return False
+        return False
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False
-        return (re.match('http://(www.)?veehd.com/' +
-                         '[0-9A-Za-z]+', url) or
-                         'veehd' in host)
-    #SiteAuth methods
+        return (re.match('http://(www.)?veehd.com/[\w]+', url) or
+                'veehd' in host)
+
+        #SiteAuth methods
     def login(self):
         loginurl = 'http://veehd.com/login'
         ref = 'http://veehd.com/'
@@ -106,14 +103,13 @@ class veeHDResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
         terms = 'on'
         remember = 'on'
         data = {'ref': ref, 'uname': login, 'pword': pword, 'submit': submit, 'terms': terms, 'remember_me': remember}
-        html = net.http_POST(loginurl, data).content
+        html = self.net.http_POST(loginurl, data).content
         self.net.save_cookies(self.cookie_file)
         if re.search('my dashboard', html):
             return True
         else:
             return False
-        
-        
+
     #PluginSettings methods
     def get_settings_xml(self):
         xml = PluginSettings.get_settings_xml(self)
@@ -124,8 +120,7 @@ class veeHDResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
         xml += '<setting id="veeHDResolver_password" enable="eq(-2,true)" '
         xml += 'type="text" label="password" option="hidden" default=""/>\n'
         return xml
-        
+
     #to indicate if this is a universal resolver
     def isUniversal(self):
-        
         return True

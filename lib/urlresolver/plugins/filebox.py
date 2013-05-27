@@ -1,4 +1,3 @@
-
 """
     urlresolver XBMC Addon
     Copyright (C) 2011 t0mm0
@@ -17,16 +16,18 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import urllib2
+import re
+import os
+
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import urllib2, re, os, xbmcgui
 from urlresolver import common
-from lib import jsunpack
-import xbmcgui
 
-#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDMKR, ELDORADO
+
+#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDSMKR, ELDORADO
 error_logo = os.path.join(common.addon_path, 'resources', 'images', 'redx.png')
 
 
@@ -41,7 +42,6 @@ class FileboxResolver(Plugin, UrlResolver, PluginSettings):
         #e.g. http://www.filebox.com/embed-rw52re7f5aul.html
         self.pattern = 'http://((?:www.)?filebox.com)/(?:embed-)?([0-9a-zA-Z]+)'
 
-
     def get_media_url(self, host, media_id):
         web_url = self.get_url(host, media_id)
 
@@ -50,12 +50,11 @@ class FileboxResolver(Plugin, UrlResolver, PluginSettings):
             html = resp.content
             post_url = resp.get_url()
 
-            dialog = xbmcgui.Dialog()
-
-            if "video is not available for streaming right now. It's still converting..." in html:
-                raise Exception ('video is not available for streaming right now.')                
+            msg = "video is not available for streaming right now. It's still converting..."
+            if msg in html:
+                return self.unresolvable(2, msg)
             if "File was deleted" in html:
-                raise Exception ('File Not Found or removed')
+                return self.unresolvable(1, 'This file has been deleted')
                 
             form_values = {}
             for i in re.finditer('<input type="hidden" name="(.+?)" value="(.+?)">', html):
@@ -63,32 +62,27 @@ class FileboxResolver(Plugin, UrlResolver, PluginSettings):
 
             html = self.net.http_POST(post_url, form_data=form_values).content
             r = re.search('url: \'(.+?)\', autoPlay: false,onBeforeFinish:', html)
-            print r
             if r:
                 return r.group(1)
 
-            raise Exception ('File Not Found or removed')
+            raise self.unresolvable()
 
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
                                    (e.code, web_url))
-            common.addon.show_small_popup('Error','Http error: '+str(e), 5000, error_logo)
-            return False
+            return self.unresolvable(3, str(e))
         except Exception, e:
             common.addon.log_error('**** Filebox Error occured: %s' % e)
-            common.addon.show_small_popup(title='[B][COLOR white]FILEBOX[/COLOR][/B]', msg='[COLOR red]%s[/COLOR]' % e, delay=5000, image=error_logo)
-            return False
+            return self.unresolvable()
 
     def get_url(self, host, media_id):
-            return 'http://www.filebox.com/embed-%s.html' % (media_id)
+            return 'http://www.filebox.com/embed-%s.html' % media_id
 
     def get_host_and_id(self, url):
         r = re.search(self.pattern, url)
         if r:
             return r.groups()
-        else:
-            return False
-
+        return False
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False

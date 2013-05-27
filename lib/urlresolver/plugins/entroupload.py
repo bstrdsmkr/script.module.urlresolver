@@ -1,4 +1,4 @@
-'''
+"""
 Entroupload urlresolver plugin
 Copyright (C) 2013 Vinnydude
 
@@ -14,42 +14,46 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-'''
+"""
+
+import re
+import urllib2
+import os
 
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
+
 from urlresolver.plugnplay import Plugin
-import re, xbmcgui, urllib2, os
+import xbmcgui
 from urlresolver import common
+
 from lib import jsunpack
 
-#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDMKR, ELDORADO
+
+#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDSMKR, ELDORADO
 error_logo = os.path.join(common.addon_path, 'resources', 'images', 'redx.png')
 
 
 net = Net()
 
+
 class EntrouploadResolver(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver, PluginSettings]
     name = "entroupload"
-
 
     def __init__(self):
         p = self.get_setting('priority') or 100
         self.priority = int(p)
         self.net = Net()
 
-
     def get_media_url(self, host, media_id):
         try:
+            dialog = xbmcgui.DialogProgress()
+            dialog.create('Resolving', 'Resolving Entroupload Link...')
+            dialog.update(0)
             url = self.get_url(host, media_id)
             html = self.net.http_GET(url).content
-            if r:
-                raise Exception ('File Not Found or removed')
-            dialog = xbmcgui.DialogProgress()
-            dialog.create('Resolving', 'Resolving Entroupload Link...')       
-            dialog.update(0)
     
             data = {}
             r = re.findall(r'type="(?:hidden|submit)?" name="((?!(?:.+premium)).+?)"\s* value="?(.+?)">', html)
@@ -86,16 +90,13 @@ class EntrouploadResolver(Plugin, UrlResolver, PluginSettings):
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
                                    (e.code, web_url))
-            common.addon.show_small_popup('Error','Http error: '+str(e), 5000, error_logo)
-            return False
+            return self.unresolvable(3, str(e))
         except Exception, e:
             common.addon.log_error('**** Entroupload Error occured: %s' % e)
-            common.addon.show_small_popup(title='[B][COLOR white]ENTROUPLOAD[/COLOR][/B]', msg='[COLOR red]%s[/COLOR]' % e, delay=5000, image=error_logo)
-            return False
+            return self.unresolvable()
         
     def get_url(self, host, media_id):
         return 'http://entroupload.com/%s' % media_id 
-        
 
     def get_host_and_id(self, url):
         r = re.search('//(.+?)/([0-9a-zA-Z]+)',url)
@@ -103,8 +104,6 @@ class EntrouploadResolver(Plugin, UrlResolver, PluginSettings):
             return r.groups()
         else:
             return False
-        return('host', 'media_id')
-
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False

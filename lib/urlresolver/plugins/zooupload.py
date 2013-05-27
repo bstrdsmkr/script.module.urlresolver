@@ -16,18 +16,21 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 """
 
+import urllib2
+import os
+import re
+
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import urllib2, os
 from urlresolver import common
-from lib import jsunpack
 import xbmcgui
-import re
-import time
 
-#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDMKR, ELDORADO
+from lib import jsunpack
+
+
+#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDSMKR, ELDORADO
 error_logo = os.path.join(common.addon_path, 'resources', 'images', 'redx.png')
 
 
@@ -43,41 +46,34 @@ class ZoouploadResolver(Plugin, UrlResolver, PluginSettings):
     def get_media_url(self, host, media_id):
         web_url = self.get_url(host, media_id)
         try:
-            lang = ({'Cookie':'lang=english;'})
-            html = self.net.http_GET(web_url, headers = lang).content
-            dialog = xbmcgui.Dialog()            
-            if re.search('>File Not Found<',html):
-                raise Exception ('File Not Found or removed')
-            r = re.search('<div id="player_code"><script type=.+?text/javascript.+?>(.+?)</script>',html,re.DOTALL)
+            lang = ({'Cookie': 'lang=english;'})
+            html = self.net.http_GET(web_url, headers=lang).content
+            if '>File Not Found<' in html:
+                return self.unresolvable(1, 'File Not Found or removed')
+            r = re.search('<div id="player_code"><script type=.+?text/javascript.+?>(.+?)</script>', html, re.DOTALL)
             if r:
                 js = jsunpack.unpack(r.group(1))
                 r = re.search('src="([^"]+)"', js)
                 if r:
                     return r.group(1)
-            raise Exception ('File Not Found or removed')
-        
+            return self.unresolvable()
+
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
                                    (e.code, web_url))
-            common.addon.show_small_popup('Error','Http error: '+str(e), 8000, error_logo)
-            return False
+            return self.unresolvable(3, str(e))
         except Exception, e:
             common.addon.log('**** Zooupload Error occured: %s' % e)
-            common.addon.show_small_popup(title='[B][COLOR white]ZOOUPLOAD[/COLOR][/B]', msg='[COLOR red]%s[/COLOR]' % e, delay=5000, image=error_logo)
-            return False
+            return self.unresolvable(0, str(e))
 
-
-        
     def get_url(self, host, media_id):
-            return 'http://zooupload.com/%s' % (media_id)
+        return 'http://zooupload.com/%s' % media_id
 
     def get_host_and_id(self, url):
         r = re.search('http://(?:www.)?(.+?)/([0-9A-Za-z]+)', url)
         if r:
             return r.groups()
-        else:
-            return False
-
+        return False
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False

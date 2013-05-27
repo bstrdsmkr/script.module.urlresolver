@@ -24,42 +24,42 @@ from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
 
+
 class hostingbulkResolver(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver, PluginSettings]
 
     def __init__(self):
         p = self.get_setting('priority') or 100
         self.priority = int(p)
+        self.net = Net()
 
     def get_media_url(self, host, media_id):
-        html = net.http_GET("http://www.hostingbulk.com/" + media_id + ".html").content
-        m = re.match('addParam|(?P<port>)|(?P<ip4>)|(?P<ip3>)|(?P<ip2>)|(?P<ip1>).+?video|(?P<file>)|',html)
-	if (len(m) > 0 ):
-            videoLink = 'http://'+m.group("ip1")+'.'+m.group("ip2")+'.'+m.group("ip3")+'.'+m.group("ip4")+':'+m.group("port")+'/d/'+m.group("file")+'/video.flv?start=0'
+        html = self.net.http_GET("http://www.hostingbulk.com/" + media_id + ".html").content
+        m = re.match('addParam|(?P<port>)|(?P<ip4>)|(?P<ip3>)|(?P<ip2>)|(?P<ip1>).+?video|(?P<file>)|', html)
+        if len(m) > 0:
+            videoLink = 'http://' + m.group("ip1") + '.' + m.group("ip2") + '.' + m.group("ip3") + '.' + m.group(
+                "ip4") + ':' + m.group("port") + '/d/' + m.group("file") + '/video.flv?start=0'
             return videoLink
 
-        print 'could not obtain video url'
-        return False
-
+        return self.unresolvable(0, 'could not obtain video url')
 
     def get_url(self, host, media_id):
         return 'http://hostingbulk.com/%s' % media_id
 
-
     def get_host_and_id(self, url):
         r = None
         video_id = None
-        
+
         if re.search('embed-', url):
             r = re.compile('embed-(.+?).html').findall(url)
         elif re.search('watch/', url):
             r = re.compile('.com/(.+?).html').findall(url)
-            
+
         if r is not None and len(r) > 0:
             video_id = r[0]
-            
+
         if video_id:
-            return ('hostingbulk.com', video_id)
+            return 'hostingbulk.com', video_id
         else:
             common.addon.log_error('hostingbulk: video id not found')
             return False

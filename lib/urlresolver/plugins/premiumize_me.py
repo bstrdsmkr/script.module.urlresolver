@@ -16,7 +16,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import os, sys
+import os
+import sys
 import re
 
 from urlresolver.plugnplay.interfaces import UrlResolver
@@ -26,10 +27,12 @@ from urlresolver.plugnplay import Plugin
 from urlresolver import common
 from t0mm0.common.net import Net
 
+
 try:
-    import simplejson as json
-except ImportError:
     import json
+except ImportError:
+    import simplejson as json
+
 
 class PremiumizeMeResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
     implements = [UrlResolver, PluginSettings]
@@ -47,20 +50,17 @@ class PremiumizeMeResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
         try:
             username = self.get_setting('username')
             password = self.get_setting('password')
-            url   = 'https://api.premiumize.me/pm-api/v1.php?'
+            url = 'https://api.premiumize.me/pm-api/v1.php?'
             url += 'method=directdownloadlink&params%%5Blogin%%5D=%s'
             url += '&params%%5Bpass%%5D=%s&params%%5Blink%%5D=%s'
-            url   = url % (username, password, media_id)
+            url = url % (username, password, media_id)
             response = self.net.http_GET(url).content
             response = json.loads(response)
             link = response['result']['location']
         except Exception, e:
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            print(exc_type, fname, exc_tb.tb_lineno)
-            return False
-        
-        common.addon.log('Premiumize.me: Resolved to %s' %link)
+            return self.unresolvable(0, str(e))
+
+        common.addon.log('Premiumize.me: Resolved to %s' % link)
         return link
 
     def get_url(self, host, media_id):
@@ -78,11 +78,17 @@ class PremiumizeMeResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
             url = url % (username, password)
             response = self.net.http_GET(url).content
             response = json.loads(response)
+            if response['status'] in (401, 402):
+                return self.unresolvable(4, response['statusmessage'])
+            if response['status'] == 404:
+                return self.unresolvable(1, response['statusmessage'])
+            if response['status'] in (428, 502, 503, 509):
+                return self.unresolvable(2, response['statusmessage'])
             result = response['result']
             log_msg = 'Premiumize.me patterns: %s' % result['regexlist']
             common.addon.log_debug(log_msg)
             self.patterns = [re.compile(regex) for regex in result['regexlist']]
-        return self.patterns 
+        return self.patterns
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false':
@@ -100,7 +106,7 @@ class PremiumizeMeResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
         xml += '<setting id="PremiumizeMeResolver_password" enable="eq(-2,true)" '
         xml += 'type="text" label="password" option="hidden" default=""/>\n'
         return xml
-        
+
     #to indicate if this is a universal resolver
     def isUniversal(self):
         return True

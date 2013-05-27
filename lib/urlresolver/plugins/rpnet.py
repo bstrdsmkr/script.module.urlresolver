@@ -16,20 +16,21 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import os, sys
 import re
+from urlresolver import common
 
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import SiteAuth
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-from urlresolver import common
 from t0mm0.common.net import Net
 
+
 try:
-    import simplejson as json
-except ImportError:
     import json
+except ImportError:
+    import simplejson as json
+
 
 class RPnetResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
     implements = [UrlResolver, PluginSettings]
@@ -48,19 +49,16 @@ class RPnetResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
         try:
             username = self.get_setting('username')
             password = self.get_setting('password')
-            url   = 'https://premium.rpnet.biz/client_api.php?'
+            url = 'https://premium.rpnet.biz/client_api.php?'
             url += 'username=%s&password=%s&action=generate&links=%s'
-            url   = url %(username, password, media_id)
+            url = url % (username, password, media_id)
             response = self.net.http_GET(url).content
             response = json.loads(response)
             link = response['links'][0]['generated']
         except Exception, e:
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            print(exc_type, fname, exc_tb.tb_lineno)
-            return False
-        
-        print 'RPnet: Resolved to %s' %link
+            return self.unresolvable(0, str(e))
+
+        common.addon.log_debug('RPnet: Resolved to %s' % link)
         return link
 
     def get_url(self, host, media_id):
@@ -74,9 +72,9 @@ class RPnetResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
             url = 'http://premium.rpnet.biz/hoster.json'
             response = self.net.http_GET(url).content
             hosters = json.loads(response)
-            print 'rpnet patterns: %s' %hosters
+            common.addon.log_debug('rpnet patterns: %s' % hosters)
             self.patterns = [re.compile(pattern) for pattern in hosters['supported']]
-        return self.patterns 
+        return self.patterns
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false':
@@ -96,7 +94,7 @@ class RPnetResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
         xml += '<setting id="RPnetResolver_password" enable="eq(-2,true)" '
         xml += 'type="text" label="password" option="hidden" default=""/>\n'
         return xml
-        
+
     #to indicate if this is a universal resolver
     def isUniversal(self):
         return True

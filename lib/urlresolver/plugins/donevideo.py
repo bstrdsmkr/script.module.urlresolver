@@ -1,4 +1,4 @@
-'''
+"""
 Donevideo urlresolver plugin
 Copyright (C) 2013 Vinnydude
 
@@ -14,28 +14,30 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-'''
+"""
+
+import re
 
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import re, xbmcgui
-from urlresolver import common
+import xbmcgui
+
 from lib import jsunpack
 
+
 net = Net()
+
 
 class DonevideoResolver(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver, PluginSettings]
     name = "donevideo"
 
-
     def __init__(self):
         p = self.get_setting('priority') or 100
         self.priority = int(p)
         self.net = Net()
-
 
     def get_media_url(self, host, media_id):
         try:
@@ -59,11 +61,11 @@ class DonevideoResolver(Plugin, UrlResolver, PluginSettings):
             r = re.findall(r'type="hidden" name="(.+?)" value="(.+?)">', html)
             for name, value in r:
                 data[name] = value
-                data.update({'code':solution})
+                data.update({'code': solution})
             
             html = net.http_POST(url, data).content
     
-            sPattern =  '<script type=(?:"|\')text/javascript(?:"|\')>(eval\('
+            sPattern  = '<script type=(?:"|\')text/javascript(?:"|\')>(eval\('
             sPattern += 'function\(p,a,c,k,e,d\)(?!.+player_ads.+).+np_vid.+?)'
             sPattern += '\s+?</script>'
             r = re.search(sPattern, html, re.DOTALL + re.IGNORECASE)
@@ -89,14 +91,10 @@ class DonevideoResolver(Plugin, UrlResolver, PluginSettings):
                         return r
 
         except Exception, e:
-            common.addon.log('**** Donevideo Error occured: %s' % e)
-            common.addon.show_small_popup('Error', str(e), 5000, '')
-            return False
-            
-        
+            return self.unresolvable(0, str(e))
+
     def get_url(self, host, media_id):
         return 'http://www.donevideo.com/%s' % media_id 
-        
 
     def get_host_and_id(self, url):
         r = re.search('//(.+?)/([0-9a-zA-Z]+)',url)
@@ -104,8 +102,6 @@ class DonevideoResolver(Plugin, UrlResolver, PluginSettings):
             return r.groups()
         else:
             return False
-        return('host', 'media_id')
-
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False

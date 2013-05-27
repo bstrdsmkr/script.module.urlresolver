@@ -16,13 +16,16 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 """
 
+import re
+import urllib
+import urllib2
+
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import re
-import urllib2
 from urlresolver import common
+
 
 class ZshareResolver(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver, PluginSettings]
@@ -32,8 +35,7 @@ class ZshareResolver(Plugin, UrlResolver, PluginSettings):
         p = self.get_setting('priority') or 100
         self.priority = int(p)
         self.net = Net()
-        self.pattern ='http://((?:www.)?zshare.net)/video/([0-9A-Za-z]+)'
-
+        self.pattern = 'http://((?:www.)?zshare.net)/video/([0-9A-Za-z]+)'
 
     def get_media_url(self, host, media_id):
         web_url = self.get_url(host, media_id)
@@ -42,8 +44,8 @@ class ZshareResolver(Plugin, UrlResolver, PluginSettings):
             html = self.net.http_GET(web_url).content
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
-                                    (e.code, web_url))
-            return False
+                                   (e.code, web_url))
+            return self.unresolvable(3, str(e))
 
         # get iframe redirect
         sPattern = '<iframe src="(http://www.zshare.net[^"]+)"'
@@ -54,20 +56,20 @@ class ZshareResolver(Plugin, UrlResolver, PluginSettings):
                 html = self.net.http_GET(iframe).content
             except urllib2.URLError, e:
                 common.addon.log_error(self.name + ': got http error %d fetching %s' %
-                                        (e.code, iframe))
-                return False
-
+                                       (e.code, iframe))
+                return self.unresolvable(3, str(e))
 
             # get stream url
             stream_url = ''
             sPattern = 'file: "([^"]+)"'
             r = re.search(sPattern, html, re.DOTALL + re.IGNORECASE)
             if r:
-                stream_url = r.group(1).replace(" ", "+") + "?start=0" + '|user-agent=Mozilla/5.0 (X11; Linux i686) AppleWebKit/535.1 (KHTML, like Gecko) Chrome/14.0.835.109 Safari/535.1'
+                agent = 'Mozilla/5.0 (X11; Linux i686) AppleWebKit/535.1 '
+                agent += '(KHTML, like Gecko) Chrome/14.0.835.109 Safari/535.1'
+                agent = urllib.quote_plus(agent)
+                base_url = urllib.quote_plus(r.group(1))
+                stream_url = ''.join(base_url, '?start=0', '|user-agent=', agent)
 
-
-            # get download url
-            download_url = ''
             # emulate download button click
             sPattern = '<a href="([^"]+)"[^>]*>Download Video</a>'
             r = re.search(sPattern, html, re.DOTALL + re.IGNORECASE)
@@ -77,31 +79,30 @@ class ZshareResolver(Plugin, UrlResolver, PluginSettings):
                         'download': 1,
                         'imageField.x': 76,
                         'imageField.y': 28
-                        }
+                }
                 try:
                     html = self.net.http_POST(buttonlink, data).content
                 except urllib2.URLError, e:
                     common.addon.log_error(self.name + ': got http error %d fetching %s' %
-                                            (e.code, buttonlink))
-                    return False
+                                           (e.code, buttonlink))
+                    return self.unresolvable(3, str(e))
 
                 sPattern = 'new Array\(([^\)]*)\);'
                 r = re.search(sPattern, html, re.DOTALL + re.IGNORECASE)
                 if r:
-                    download_url = r.group(1).replace("'","").replace(",","")
+                    stream_url = r.group(1).replace("'", "").replace(",", "")
 
-
-        return stream_url
+            return stream_url
+        return self.unresolvable()
 
     def get_url(self, host, media_id):
-            return 'http://www.zshare.net/video/%s' % (media_id)
+        return 'http://www.zshare.net/video/%s' % media_id
 
     def get_host_and_id(self, url):
         r = re.search(self.pattern, url)
         if r:
             return r.groups()
-        else:
-            return False
+        return False
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False

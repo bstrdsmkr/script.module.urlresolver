@@ -1,4 +1,4 @@
-'''
+"""
 ovfile urlresolver plugin
 Copyright (C) 2011 anilkuj
 
@@ -14,16 +14,17 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-'''
+"""
+
+import re
 
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import re
-import urllib2
 from urlresolver import common
-import os, xbmcgui
+import xbmcgui
+#TODO: switch this to the jsunpack lib
 from vidxden import unpack_js
 
 
@@ -31,54 +32,47 @@ class OvfileResolver(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver, PluginSettings]
     name = "ovile"
 
-
     def __init__(self):
         p = self.get_setting('priority') or 100
         self.priority = int(p)
         self.net = Net()
 
-
     def get_media_url(self, host, media_id):
         web_url = self.get_url(host, media_id)
         html = self.net.http_GET(web_url).content
 
-        dialog = xbmcgui.Dialog()
-
         if 'file has been removed' in html:
-            dialog.ok(' UrlResolver ', ' File has been removed. ', '', '')
-            return False
+            self.unresolvable(1, 'This file has been removed')
 
         form_values = {}
         for i in re.finditer('<input type="hidden" name="(.+?)" value="(.+?)">', html):
             form_values[i.group(1)] = i.group(2)
 
         html = self.net.http_POST(web_url, form_data=form_values).content
-       
-        page = ''.join(html.splitlines()).replace('\t','')
+
+        page = ''.join(html.splitlines()).replace('\t', '')
         r = re.compile("return p\}\(\'(.+?)\',\d+,\d+,\'(.+?)\'").findall(page)
         if r:
             p = r[1][0]
             k = r[1][1]
         else:
-            common.addon.log_error(self.name + '- packed javascript embed code not found')
-            return False
+            msg = '%s: packed javascript embed code not found' % self.name
+            common.addon.log_error(msg)
+            return self.unresolvable(0, msg)
         decrypted_data = unpack_js(p, k)
         r = re.search('file.\',.\'(.+?).\'', decrypted_data)
         if not r:
             r = re.search('src="(.+?)"', decrypted_data)
         if r:
-            stream_url = r.group(1)
+            return r.group(1)
         else:
-            common.addon.log_error(self.name + '- stream url not found')
-            return False
-
-        return stream_url
-    
+            msg = '%s: stream url not found' % self.name
+            common.addon.log_error(msg)
+            return self.unresolvable(0, msg)
 
     def get_url(self, host, media_id):
-        return 'http://www.ovfile.com/%s' % media_id 
-        
-        
+        return 'http://www.ovfile.com/%s' % media_id
+
     def get_host_and_id(self, url):
         r = re.search('http://(.+?)/embed-([\w]+)-', url)
         if r:
@@ -90,9 +84,7 @@ class OvfileResolver(Plugin, UrlResolver, PluginSettings):
             else:
                 return False
 
-
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False
-        return (re.match('http://(www.)?ovfile.com/' +
-                         '[0-9A-Za-z]+', url) or
-                         'ovfile' in host)
+        return (re.match('http://(www.)?ovfile.com/[\w]+', url) or
+                'ovfile' in host)

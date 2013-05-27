@@ -1,4 +1,4 @@
-'''
+"""
 sharesix urlresolver plugin
 Copyright (C) 2011 humla
 
@@ -14,17 +14,22 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-'''
+"""
+
+import re
+import urllib2
+import os
 
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import re, urllib2, os, xbmcgui
 from urlresolver import common
 
-#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDMKR, ELDORADO
+
+#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDSMKR, ELDORADO
 error_logo = os.path.join(common.addon_path, 'resources', 'images', 'redx.png')
+
 
 class SharesixResolver(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver, PluginSettings]
@@ -35,49 +40,44 @@ class SharesixResolver(Plugin, UrlResolver, PluginSettings):
         self.priority = int(p)
         self.net = Net()
 
-
     def get_media_url(self, host, media_id):
         web_url = self.get_url(host, media_id)
 
         try:
-           # Otherwise just use the original url to get the content. For sharesix
+        # Otherwise just use the original url to get the content. For sharesix
             html = self.net.http_GET(web_url).content
             # To build the streamable link, we need 
             # # the IPv4 addr (first 4 content below)
             # # the hash of the file
             metadata = re.compile('\|\|?(\d+)\|\|?(\d+)\|\|?(\d+)\|\|?(\d+)\|.+?video\|(.+?)\|\|?file').findall(html)
 
-            if (len(metadata) > 0):
+            if len(metadata) > 0:
                 metadata = metadata[0]
-                stream_url="http://"+metadata[3]+"."+metadata[2]+"."+metadata[1]+"."+metadata[0]+"/d/"+ metadata[4]+"/video.flv"
+                stream_url = "http://" + metadata[3] + "." + metadata[2] + "." + metadata[1] + "." + metadata[
+                    0] + "/d/" + metadata[4] + "/video.flv"
                 return stream_url
-            
+
             if 'file you were looking for could not be found' in html:
-                raise Exception ('File Not Found or removed')
+                return self.unresolvable(1, 'This file has been removed')
 
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
                                    (e.code, web_url))
-            common.addon.show_small_popup('Error','Http error: '+str(e), 5000, error_logo)
-            return False
+            return self.unresolvable(3, str(e))
         except Exception, e:
             common.addon.log_error('**** Sharesix Error occured: %s' % e)
-            common.addon.show_small_popup(title='[B][COLOR white]SHARESIX[/COLOR][/B]', msg='[COLOR red]%s[/COLOR]' % e, delay=5000, image=error_logo)
-            return False
+            return self.unresolvable(0, str(e))
 
     def get_url(self, host, media_id):
         return 'http://%s/%s' % (host, media_id)
-        
+
     def get_host_and_id(self, url):
         r = re.search('//(.+?)/([0-9a-zA-Z/]+)', url)
         if r:
             return r.groups()
-        else:
-            return False
-
+        return False
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False
-        return (re.match('http://(www.)?sharesix.com/' +
-                         '[0-9A-Za-z]+', url) or
-                         'sharesix' in host)
+        return (re.match('http://(www.)?sharesix.com/[\w]+', url) or
+                'sharesix' in host)

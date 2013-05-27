@@ -15,17 +15,22 @@
     mash2k3, Mikey1234,voinage and of course Eldorado. Cheers guys :)
 """
 
-import os, urllib2, re
+import os
+import urllib2
+import re
+
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
 from urlresolver import common
-from lib import jsunpack
-net = Net()
 
-#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDMKR, ELDORADO
+from lib import jsunpack
+
+
+#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDSMKR, ELDORADO
 error_logo = os.path.join(common.addon_path, 'resources', 'images', 'redx.png')
+
 
 class vidto(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver, PluginSettings]
@@ -36,60 +41,52 @@ class vidto(Plugin, UrlResolver, PluginSettings):
         p = self.get_setting('priority') or 100
         self.priority = int(p)
         self.net = Net()
-        
+
     def get_media_url(self, host, media_id):
-        web_url = self.get_url(host, media_id)+'.html'
+        web_url = self.get_url(host, media_id) + '.html'
         try:
             html = self.net.http_GET(web_url).content
-            r = re.findall(r'<font class="err">File was removed</font>',html,re.I)
+            r = re.findall(r'<font class="err">File was removed</font>', html, re.I)
             if r:
-                common.addon.log_error(self.name + ': File was removed')
-                common.addon.show_small_popup(title='[B][COLOR white]VIDTO.ME[/COLOR][/B]', msg='[COLOR red]No such file or the file has been removed[/COLOR]', delay=5000, image=error_logo)
-                return False            
+                return self.unresolvable(1, 'File was removed')
             if not r:
-                r = re.findall(r'(eval\(function\(p,a,c,k,e,d\)\{while.+?flvplayer.+?)</script>'
-                               ,html,re.M|re.DOTALL)
+                pattern = r'(eval\(function\(p,a,c,k,e,d\)\{while.+?flvplayer.+?)</script>'
+                r = re.findall(pattern, html, re.M | re.DOTALL)
                 if r:
                     unpacked = jsunpack.unpack(r[0])
-                    r = re.findall(r'label:"360p",file:"(.+?)"}',unpacked)
+                    r = re.findall(r'label:"360p",file:"(.+?)"}', unpacked)
                 if not r:
-                    r = re.findall('type="hidden" name="(.+?)" value="(.+?)">',html)
+                    r = re.findall('type="hidden" name="(.+?)" value="(.+?)">', html)
                     post_data = {}
                     for name, value in r:
                         post_data[name] = value
                     post_data['usr_login'] = ''
                     post_data['referer'] = web_url
                     common.addon.show_countdown(7, 'Please Wait', 'Resolving')
-                    html = net.http_POST(web_url,post_data).content
-                    r = re.findall(r'(eval\(function\(p,a,c,k,e,d\)\{while.+?flvplayer.+?)</script>'
-                                   ,html,re.M|re.DOTALL)
+                    html = self.net.http_POST(web_url, post_data).content
+                    r = re.findall(pattern, html, re.M | re.DOTALL)
                     if r:
                         unpacked = jsunpack.unpack(r[0])
-                        r = re.findall(r'label:"360p",file:"(.+?)"}',unpacked)
+                        r = re.findall(r'label:"360p",file:"(.+?)"}', unpacked)
                     if not r:
-                        r = re.findall(r"var file_link = '(.+?)';",html)
-            return r[0]            
+                        r = re.findall(r"var file_link = '(.+?)';", html)
+            return r[0]
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
                                    (e.code, web_url))
-            common.addon.show_small_popup('Error','Http error: '+str(e), 5000, error_logo)
-            return False
+            return self.unresolvable(3, str(e))
         except Exception, e:
             common.addon.log_error('**** Vidto.me Error Occured : %s' % e)
-            common.addon.show_small_popup('Error','An error has occured, unable to resolve link', 5000, error_logo)
-            return False
-        
+            return self.unresolvable(0, str(e))
+
     def get_url(self, host, media_id):
         return 'http://www.vidto.me/%s' % media_id
 
     def get_host_and_id(self, url):
-        r = re.search('//(.+?)/([0-9A-Za-z]+)',url)
+        r = re.search('//(.+?)/([0-9A-Za-z]+)', url)
         if r:
             return r.groups()
-        else:
-            return False
-        return ('host', 'media_id')
-        
+        return False
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False

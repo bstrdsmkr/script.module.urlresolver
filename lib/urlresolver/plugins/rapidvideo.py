@@ -16,15 +16,14 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import urllib2
+import re
+
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import urllib2
 from urlresolver import common
-
-# Custom imports
-import re
 
 
 class RapidvideoResolver(Plugin, UrlResolver, PluginSettings):
@@ -38,7 +37,6 @@ class RapidvideoResolver(Plugin, UrlResolver, PluginSettings):
         #e.g. http://rapidvideo.com/view/hwksai28
         self.pattern = 'http://((?:www.)?rapidvideo.com)/view/([0-9a-zA-Z]+)'
 
-
     def get_media_url(self, host, media_id):
         web_url = self.get_url(host, media_id)
 
@@ -46,8 +44,8 @@ class RapidvideoResolver(Plugin, UrlResolver, PluginSettings):
             html = self.net.http_GET(web_url).content
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
-                                    (e.code, web_url))
-            return False
+                                   (e.code, web_url))
+            return self.unresolvable(3, str(e))
 
         # get stream url
         sPattern = "so.addVariable\(\s*'file'\s*,\s*'([^']+)'\s*\)"
@@ -58,7 +56,7 @@ class RapidvideoResolver(Plugin, UrlResolver, PluginSettings):
         return False
 
     def get_url(self, host, media_id):
-            return 'http://rapidvideo.com/view/%s' % (media_id)
+        return 'http://rapidvideo.com/view/%s' % media_id
 
     def get_host_and_id(self, url):
         r = re.search(self.pattern, url)
@@ -66,7 +64,6 @@ class RapidvideoResolver(Plugin, UrlResolver, PluginSettings):
             return r.groups()
         else:
             return False
-
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False

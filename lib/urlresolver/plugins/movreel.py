@@ -20,7 +20,10 @@
     
 """
 
-import re, os, xbmcgui, xbmcaddon, cookielib
+import re
+import os
+
+import xbmcgui
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
@@ -28,14 +31,12 @@ from urlresolver.plugnplay.interfaces import SiteAuth
 from urlresolver.plugnplay import Plugin
 from urlresolver import common
 
-net = Net()
 
 class MovreelResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
     implements = [UrlResolver, SiteAuth, PluginSettings]
     name = "movreel"
-    profile_path = common.profile_path    
+    profile_path = common.profile_path
     cookie_file = os.path.join(profile_path, '%s.cookies' % name)
-    
 
     def __init__(self):
         p = self.get_setting('priority') or 100
@@ -45,105 +46,96 @@ class MovreelResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
             os.makedirs(os.path.dirname(self.cookie_file))
         except OSError:
             pass
-        
 
     def login(self):
-        if self.get_setting('login') == 'true': 
+        if self.get_setting('login') == 'true':
             loginurl = 'http://movreel.com/login.html'
             login = self.get_setting('movreelResolver_username')
             password = self.get_setting('movreelResolver_password')
             data = {'op': 'login', 'login': login, 'password': password}
-            html = net.http_POST(loginurl, data).content
+            html = self.net.http_POST(loginurl, data).content
             if re.search('op=logout', html):
                 self.net.save_cookies(self.cookie_file)
-                common.addon.log('LOGIN SUCCESSFUL') 
+                common.addon.log('LOGIN SUCCESSFUL')
                 return True
             else:
-                common.addon.log('LOGIN FAILED') 
+                common.addon.log('LOGIN FAILED')
                 return False
         else:
-            common.addon.log('No account info entered') 
+            common.addon.log('No account info entered')
             return False
-        
 
     def get_media_url(self, host, media_id):
-               
         try:
             url = self.get_url(host, media_id)
-            html = self.net.http_GET(url).content
             dialog = xbmcgui.DialogProgress()
-            dialog.create('Resolving', 'Resolving Movreel Link...')       
+            dialog.create('Resolving', 'Resolving Movreel Link...')
             dialog.update(0)
-        
-            html = net.http_GET(url).content
-        
+
+            html = self.net.http_GET(url).content
+
             dialog.update(33)
-        
+
             if re.search('This server is in maintenance mode', html):
-                raise Exception('File is currently unavailable on the host')
-            
+                return self.unresolvable(2, 'File is currently unavailable on the host')
+
             data = {}
             r = re.findall(r'type="hidden" name="(.+?)"\s* value="?(.+?)">', html)
-            method_free = re.search('<input type="(submit|hidden)" name="method_free" (style=".*?" )*value="(.*?)">', html).group(3)
-            method_premium = re.search('<input type="(hidden|submit)" name="method_premium" (style=".*?" )*value="(.*?)">', html).group(3)
-            
+            pattern = '<input type="(submit|hidden)" name="method_free" (style=".*?" )*value="(.*?)">'
+            method_free = re.search(pattern, html).group(3)
             if method_free:
                 for name, value in r:
                     data[name] = value
-                    data.update({'method_free':method_free})
+                    data.update({'method_free': method_free})
             else:
+                pattern = '<input type="(hidden|submit)" name="method_premium" (style=".*?" )*value="(.*?)">'
+                method_premium = re.search(pattern, html).group(3)
                 for name, value in r:
                     data[name] = value
-                    data.update({'method_premium':method_premium})                   
-        
-            html = net.http_POST(url, data).content
+                    data.update({'method_premium': method_premium})
+
+            html = self.net.http_POST(url, data).content
 
             if method_free:
                 if re.search('<p class="err">.+?</p>', html):
                     errortxt = re.search('<p class="err">(.+?)</p>', html).group(1)
-                    raise Exception(errortxt)
+                    return self.unresolvable(0, errortxt)
 
                 data = {}
                 r = re.findall(r'type="hidden" name="(.+?)"\s* value="?(.+?)">', html)
                 for name, value in r:
                     data[name] = value
-                    data.update({'down_direct':1})    
-    
-                html = net.http_POST(url, data).content
+                    data.update({'down_direct': 1})
+
+                html = self.net.http_POST(url, data).content
 
             dialog.update(100)
             link = re.search('<a id="lnk_download" href="(.+?)">Download Original Video</a>', html, re.DOTALL).group(1)
-            
+
             dialog.close()
             mediurl = link
-        
+
             return mediurl
 
         except Exception, e:
             common.addon.log('**** Movreel Error occured: %s' % e)
-            common.addon.show_small_popup('Error', str(e), 5000, '')
-            return False
-        
+            return self.unresolvable(0, str(e))
 
     def get_url(self, host, media_id):
         return 'http://www.movreel.com/%s' % media_id
-    
 
     def get_host_and_id(self, url):
-        r = re.search('//(.+?)/([0-9a-zA-Z]+)',url)
+        r = re.search('//(.+?)/([0-9a-zA-Z]+)', url)
         if r:
             return r.groups()
         else:
             return False
-        return('host', 'media_id')
-    
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False
-        return (re.match('http://(www.)?movreel.com/' +
-                         '[0-9A-Za-z]+', url) or
-                         'movreel' in host)
-    
+        return (re.match('http://(www.)?movreel.com/[\w]+]', url) or
+                'movreel' in host)
+
     def get_settings_xml(self):
         xml = PluginSettings.get_settings_xml(self)
         xml += '<setting id="movreelResolver_login" '

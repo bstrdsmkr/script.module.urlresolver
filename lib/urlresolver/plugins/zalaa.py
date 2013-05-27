@@ -16,15 +16,20 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import urllib2
+import re
+import os
+
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import urllib2, re, os
 from urlresolver import common
+
 from lib import jsunpack
 
-#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDMKR, ELDORADO
+
+#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDSMKR, ELDORADO
 error_logo = os.path.join(common.addon_path, 'resources', 'images', 'redx.png')
 
 
@@ -40,62 +45,42 @@ class ZalaaResolver(Plugin, UrlResolver, PluginSettings):
         #FIXME: http://www.zalaa.com/npwp1cr4uys7/Nikita.S02E14.HDTV.XviD-LOL.avi.htm
         self.pattern = 'http://www.(zalaa.com)/([a-zA-Z0-9]+)(?:/.+?\.htm)?'
 
-
     def get_media_url(self, host, media_id):
         web_url = self.get_url(host, media_id)
 
         try:
             html = self.net.http_GET(web_url).content
-            r =  'method="POST"\s+name=\'frmdownload\'.+?"ipcount_val" value="'
+            r = 'method="POST"\s+name=\'frmdownload\'.+?"ipcount_val" value="'
             r += '([0-9]+)".+?"op"\s+value="(.+?)".+?name="fname"\s+value="(.+?)"'
 
-            r = re.search(r,html,re.DOTALL)
-            ipcount_val,op,fname = r.groups()
-            data =  {'ipcount_val':ipcount_val}
-            data['op'] = op
-            data['usr_login'] = ''
-            data['id'] = media_id
-            data['fname'] = fname
-            data['referer'] = web_url
-            data['method_free'] = 'Slow access'
+            r = re.search(r, html, re.DOTALL)
+            ipcount_val, op, fname = r.groups()
+            data = {'ipcount_val': ipcount_val, 'op': op, 'usr_login': '', 'id': media_id, 'fname': fname,
+                    'referer': web_url, 'method_free': 'Slow access'}
 
             html = self.net.http_POST(web_url, data).content
-            # get url from packed javascript
-            sPattern =  '<script type=(?:"|\')text/javascript(?:"|\')>(eval\('
-            sPattern += 'function\(p,a,c,k,e,d\)(?!.+player_ads.+).+np_vid.+?)'
-            sPattern += '\s+?</script>'
-            r = re.search(sPattern, html, re.DOTALL + re.IGNORECASE)
+            pattern = "'file','(.+?)'"
+            r = re.search(pattern, html, re.DOTALL + re.IGNORECASE)
             if r:
-                sJavascript = r.group(1)
-                sUnpacked = jsunpack.unpack(sJavascript)
-                print(sUnpacked)
-                sPattern  = '<embed id="np_vid"type="video/divx"src="(.+?)'
-                sPattern += '"custommode='
-                r = re.search(sPattern, sUnpacked)
-                if r:
-                    return r.group(1)
+                return r.group(1)
 
-            raise Exception ('File Not Found or removed')
+            return self.unresolvable()
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
                                    (e.code, web_url))
-            common.addon.show_small_popup('Error','Http error: '+str(e), 8000, error_logo)
-            return False
+            return self.unresolvable(3, str(e))
         except Exception, e:
             common.addon.log('**** Zalaa Error occured: %s' % e)
-            common.addon.show_small_popup(title='[B][COLOR white]ZALAA[/COLOR][/B]', msg='[COLOR red]%s[/COLOR]' % e, delay=5000, image=error_logo)
-            return False
+            return self.unresolvable(0, str(e))
 
     def get_url(self, host, media_id):
-            return 'http://www.zalaa.com/%s' % (media_id)
+        return 'http://www.zalaa.com/%s' % media_id
 
     def get_host_and_id(self, url):
         r = re.search(self.pattern, url)
         if r:
             return r.groups()
-        else:
-            return False
-
+        return False
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False

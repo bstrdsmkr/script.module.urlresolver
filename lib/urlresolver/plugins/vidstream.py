@@ -16,14 +16,18 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import urllib2
+import re
+import os
+
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import urllib2, re, os
 from urlresolver import common
 
-#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDMKR, ELDORADO
+
+#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDSMKR, ELDORADO
 error_logo = os.path.join(common.addon_path, 'resources', 'images', 'redx.png')
 
 
@@ -37,7 +41,6 @@ class VidstreamResolver(Plugin, UrlResolver, PluginSettings):
         self.net = Net()
         #e.g. http://vidstream.in/xdfaay6ccwqj
         self.pattern = 'http://((?:www.)?vidstream.in)/(.*)'
-
 
     def get_media_url(self, host, media_id):
         web_url = self.get_url(host, media_id)
@@ -59,27 +62,23 @@ class VidstreamResolver(Plugin, UrlResolver, PluginSettings):
             if r:
                 return r.group(1)
 
-            raise Exception ('File Not Found or removed')
+            return self.unresolvable()
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
                                    (e.code, web_url))
-            common.addon.show_small_popup('Error','Http error: '+str(e), 8000, error_logo)
-            return False
+            return self.unresolvable(3, str(e))
         except Exception, e:
             common.addon.log('**** Vidstream Error occured: %s' % e)
-            common.addon.show_small_popup(title='[B][COLOR white]VIDSTREAM[/COLOR][/B]', msg='[COLOR red]%s[/COLOR]' % e, delay=5000, image=error_logo)
-            return False
+            return self.unresolvable(0, str(e))
 
     def get_url(self, host, media_id):
-            return 'http://vidstream.in/%s' % (media_id)
+        return 'http://vidstream.in/%s' % media_id
 
     def get_host_and_id(self, url):
         r = re.search(self.pattern, url)
         if r:
             return r.groups()
-        else:
-            return False
-
+        return False
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False

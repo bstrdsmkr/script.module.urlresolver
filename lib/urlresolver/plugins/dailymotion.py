@@ -1,4 +1,4 @@
-'''
+"""
 dailymotion urlresolver plugin
 Copyright (C) 2011 cyrus007
 
@@ -14,15 +14,18 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-'''
+"""
+
+import re
+import urllib2
+import urllib
 
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import re
-import urllib2, urllib
 from urlresolver import common
+
 
 class DailymotionResolver(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver, PluginSettings]
@@ -33,33 +36,25 @@ class DailymotionResolver(Plugin, UrlResolver, PluginSettings):
         self.priority = int(p)
         self.net = Net()
 
-
     def get_media_url(self, host, media_id):
         web_url = self.get_url(host, media_id)
         try:
             link = self.net.http_GET(web_url).content
         except urllib2.URLError, e:
-            common.addon.log_error(self.name + '- got http error %d fetching %s' %
-                                   (e.code, web_url))
-            return False
+            return self.unresolvable(3, str(e))
         sequence = re.compile('"sequence":"(.+?)"').findall(link)
         newseqeunce = urllib.unquote(sequence[0]).decode('utf8').replace('\\/', '/')
-        imgSrc = re.compile('og:image" content="(.+?)"').findall(link)
-        if(len(imgSrc) == 0):
-                imgSrc = re.compile('/jpeg" href="(.+?)"').findall(link)
-        dm_low = re.compile('"sdURL":"(.+?)"').findall(newseqeunce)
         dm_high = re.compile('"hqURL":"(.+?)"').findall(newseqeunce)
-        videoUrl = ''
-        if(len(dm_high) == 0):
-                videoUrl = dm_low[0]
+
+        if len(dm_high) == 0:
+            dm_low = re.compile('"sdURL":"(.+?)"').findall(newseqeunce)
+            return dm_low[0]
         else:
-                videoUrl = dm_high[0]
-        return videoUrl
+            return dm_high[0]
 
     def get_url(self, host, media_id):
         return 'http://www.dailymotion.com/video/%s' % media_id
-        
-        
+
     def get_host_and_id(self, url):
         r = re.search('//(.+?)/video/([0-9A-Za-z]+)', url)
         if r:
@@ -71,8 +66,7 @@ class DailymotionResolver(Plugin, UrlResolver, PluginSettings):
             else:
                 return False
 
-
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False
-        return re.match('http://(www.)?dailymotion.com/video/[0-9A-Za-z]+', url) or \
-               re.match('http://(www.)?dailymotion.com/swf/[0-9A-Za-z]+', url) or self.name in host
+        return re.match('http://(www.)?dailymotion.com/(video|swf)/[\w]+', url) or \
+               self.name in host

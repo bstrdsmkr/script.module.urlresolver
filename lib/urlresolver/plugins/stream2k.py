@@ -16,16 +16,19 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import re
+import os
+import random
+import urllib2
+
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import re, os
-import random
-import urllib2
 from urlresolver import common
 
-#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDMKR, ELDORADO
+
+#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDSMKR, ELDORADO
 error_logo = os.path.join(common.addon_path, 'resources', 'images', 'redx.png')
 
 class Stream2kResolver(Plugin, UrlResolver, PluginSettings):
@@ -37,53 +40,48 @@ class Stream2kResolver(Plugin, UrlResolver, PluginSettings):
         self.priority = int(p)
         self.net = Net()
         # e.g. http://server4.stream2k.com/playerjw/vConfig56.php?vkey=1d8dc00940da661ffba9
-        # updated to resolver the embedded url also : http://embed.stream2k.com/mdBtg097yuQc-7bXQBt-9GwtNEDawZJceCuSqsu86DXshHXngHMYOkq7YDwT-5c6s=nqAOQRzQ177QnR2P3vKOTQ&e=1358597943
-        self.pattern ='http://([^/]*stream2k.com)/[^"]+vkey=([0-9A-Za-z]+)'
-       
+        # updated to resolve embedded urls also :
+        # http://embed.stream2k.com/mdBtg097yuQc-7bXQBt-9GwtNEDawZJceCuSqsu86DXshHXngHMYOkq7YDwT-5c6s=nqAOQRzQ177QnR2P3vKOTQ&e=1358597943
+        self.pattern = 'http://([^/]*stream2k.com)/[^"]+vkey=([0-9A-Za-z]+)'
+
     def get_media_url(self, host, media_id):
         web_url = self.get_url(host, media_id)
-        print web_url
         try:
-            html = self.net.http_GET(web_url,{'referer': web_url}).content
-            if host.find('embed')>0: sPattern = "file=(.+?)&"
-            else: sPattern = "<file>(.*?)</file>"
+            html = self.net.http_GET(web_url, {'referer': web_url}).content
+            if host.find('embed') > 0:
+                sPattern = "file=(.+?)&"
+            else:
+                sPattern = "<file>(.*?)</file>"
 
             # get stream url
             r = re.search(sPattern, html, re.DOTALL + re.IGNORECASE)
             if r:
                 return r.group(1)
-
-            raise Exception ('File Not Found or removed')
+            return self.unresolvable()
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
                                    (e.code, web_url))
-            common.addon.show_small_popup('Error','Http error: '+str(e), 8000, error_logo)
-            return False
+            return self.unresolvable(3, str(e))
         except Exception, e:
             common.addon.log('**** stream2k Error occured: %s' % e)
-            common.addon.show_small_popup(title='[B][COLOR white]STREAM2K[/COLOR][/B]', msg='[COLOR red]%s[/COLOR]' % e, delay=5000, image=error_logo)
-            return False
+            return self.unresolvable(0, str(e))
 
     def get_url(self, host, media_id):
-        if not host.find('embed')>0:
-            serverNum = random.randint(2,15)
-            url = 'http://server' + str(serverNum) + \
-                '.stream2k.com/playerjw/vConfig56.php?vkey=%s' % (media_id)
+        if not host.find('embed') > 0:
+            serverNum = random.randint(2, 15)
+            url = 'http://server%s.stream2k.com/playerjw/vConfig56.php?vkey=%s' % (serverNum, media_id)
         else:
-            url = "%s%s"%(host,media_id)
-            return url
+            url = "%s%s" % (host, media_id)
+        return url
 
     def get_host_and_id(self, url):
         r = re.search(self.pattern, url)
-        if r : return r.groups()
-        if not r:
-            r = url.split('?')
-            return r[0],r[1].replace('s=','?s=')
-            
+        if r: return r.groups()
         else:
-            
-            return False
+            r = url.split('?')
+            return r[0], r[1].replace('s=', '?s=')
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False
-        return re.match(self.pattern, url) or re.match('http://([^/]*stream2k.com)/.+?s=([0-9A-Za-z]+).+?', url) or self.name in host
+        return re.match(self.pattern, url) or re.match('http://([^/]*stream2k.com)/.+?s=([0-9A-Za-z]+).+?',
+                                                       url) or self.name in host

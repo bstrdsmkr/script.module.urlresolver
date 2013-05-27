@@ -16,31 +16,31 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import os, sys
-import random
+import os
 import re
-import urllib, urllib2
+import urllib
+import urllib2
 
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import SiteAuth
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
 from urlresolver import common
-import xbmc,xbmcplugin,xbmcgui,xbmcaddon, datetime
-import cookielib
+import xbmcgui
 from t0mm0.common.net import Net
+
 
 #SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDMKR, ELDORADO
 error_logo = os.path.join(common.addon_path, 'resources', 'images', 'redx.png')
 
+
 class AllDebridResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
     implements = [UrlResolver, SiteAuth, PluginSettings]
     name = "AllDebrid"
-    profile_path = common.profile_path    
+    profile_path = common.profile_path
     cookie_file = os.path.join(profile_path, '%s.cookies' % name)
     media_url = None
     allHosters = None
-
 
     def __init__(self):
         p = self.get_setting('priority') or 1
@@ -62,31 +62,28 @@ class AllDebridResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
             source = self.net.http_GET(url).content
 
             if re.search('login', source):
-                raise Exception ('Your account may have Expired')
+                return self.unresolvable(4, 'Your account may have Expired')
             if re.search('Hoster unsupported or under maintenance', source):
-                raise Exception ('Sorry this hoster is not supported')
+                return self.unresolvable(4, 'Sorry this hoster is not supported')
 
-            link =re.compile("href='(.+?)'").findall(source)
+            link = re.compile("href='(.+?)'").findall(source)
             if len(link) == 0:
-                raise Exception ('File Not Found or removed')
+                return self.unresolvable(1, 'File Not Found or removed')
             print 'link is %s' % link[0]
             self.media_url = link[0]
             return link[0]
-        
+
         except urllib2.URLError, e:
-            common.addon.log_error(self.name + ': got http error %d fetching %s' %
-                                   (e.code, web_url))
-            common.addon.show_small_popup('Error','Http error: '+str(e), 8000, error_logo)
-            return False
-        
+            return self.unresolvable(2, str(e))
+
         except Exception, e:
             common.addon.log('**** Alldebrid Error occured: %s' % e)
-            common.addon.show_small_popup(title='[B][COLOR white]ALLDEBRID[/COLOR][/B]', msg='[COLOR red]%s[/COLOR]' % e, delay=5000, image=error_logo)
+            common.addon.show_small_popup(title='[B][COLOR white]ALLDEBRID[/COLOR][/B]',
+                                          msg='[COLOR red]%s[/COLOR]' % e, delay=5000, image=error_logo)
             return False
 
     def get_url(self, host, media_id):
         return media_id
-
 
     def get_host_and_id(self, url):
         return 'www.alldebrid.com', url
@@ -104,7 +101,7 @@ class AllDebridResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
         print 'in valid_url %s : %s' % (url, host)
         tmp = re.compile('//(.+?)/').findall(url)
         domain = ''
-        if len(tmp) > 0 :
+        if len(tmp) > 0:
             domain = tmp[0].replace('www.', '')
             if 'megashares' in domain:
                 domain = 'megashares.com'
@@ -116,12 +113,12 @@ class AllDebridResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
         else:
             return False
 
-    def  checkLogin(self):
+    def checkLogin(self):
         url = 'http://alldebrid.com/service.php'
         if not os.path.exists(self.cookie_file):
-               return True
+            return True
         self.net.set_cookies(self.cookie_file)
-        source =  self.net.http_GET(url).content
+        source = self.net.http_GET(url).content
         print source
         if re.search('login', source):
             print 'checkLogin returning False'
@@ -135,7 +132,8 @@ class AllDebridResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
         if self.checkLogin():
             try:
                 print 'Need to login since session is invalid'
-                login_data = urllib.urlencode({'action' : 'login','login_login' : self.get_setting('username'), 'login_password' : self.get_setting('password')})
+                login_data = urllib.urlencode({'action': 'login', 'login_login': self.get_setting('username'),
+                                               'login_password': self.get_setting('password')})
                 url = 'http://alldebrid.com/register/?' + login_data
                 source = self.net.http_GET(url).content
                 if re.search('Control panel', source):
@@ -143,9 +141,9 @@ class AllDebridResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
                     self.net.set_cookies(self.cookie_file)
                     return True
             except:
-                    print 'error with http_GET'
-                    dialog = xbmcgui.Dialog()
-                    dialog.ok(' Real-Debrid ', ' Unexpected error, Please try again.', '', '')
+                print 'error with http_GET'
+                dialog = xbmcgui.Dialog()
+                dialog.ok(' Real-Debrid ', ' Unexpected error, Please try again.', '', '')
             else:
                 return False
         else:
@@ -164,5 +162,4 @@ class AllDebridResolver(Plugin, UrlResolver, SiteAuth, PluginSettings):
 
     #to indicate if this is a universal resolver
     def isUniversal(self):
-
         return True

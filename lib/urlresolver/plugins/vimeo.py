@@ -17,12 +17,11 @@
 """
 
 import re
-from t0mm0.common.net import Net
-import urllib2
 from urlresolver import common
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
+
 
 class VimeoResolver(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver, PluginSettings]
@@ -34,25 +33,22 @@ class VimeoResolver(Plugin, UrlResolver, PluginSettings):
 
     def get_media_url(self, host, media_id):
         #just call vimeo addon
-        plugin = 'plugin://plugin.video.vimeo/?action=play_video&videoid=' +\
+        plugin = 'plugin://plugin.video.vimeo/?action=play_video&videoid=' + \
                  media_id
         return plugin
 
-
     def get_url(self, host, media_id):
         return 'http://vimeo.com/%s' % media_id
-
 
     def get_host_and_id(self, url):
         r = re.findall('/([0-9]+)', url)
         if r:
             video_id = r[-1]
         if video_id:
-            return ('vimeo.com', video_id)
+            return 'vimeo.com', video_id
         else:
             common.addon.log_error('vimeo: video id not found')
             return False
-
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False

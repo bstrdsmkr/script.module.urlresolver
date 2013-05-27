@@ -16,19 +16,22 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 """
 
+import urllib2
+import os
+import re
+
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import urllib2, os
 from urlresolver import common
-from lib import jsunpack
-import xbmcgui
-import re
-import time
 
-#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDMKR, ELDORADO
+from lib import jsunpack
+
+
+#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDSMKR, ELDORADO
 error_logo = os.path.join(common.addon_path, 'resources', 'images', 'redx.png')
+
 
 class TheFileResolver(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver, PluginSettings]
@@ -43,33 +46,29 @@ class TheFileResolver(Plugin, UrlResolver, PluginSettings):
         web_url = self.get_url(host, media_id)
         try:
             html = self.net.http_GET(web_url).content
-            r = re.search("<script type='text/javascript'>(.+?)</script>",html,re.DOTALL)
+            r = re.search("<script type='text/javascript'>(.+?)</script>", html, re.DOTALL)
             if r:
                 js = jsunpack.unpack(r.group(1))
                 r = re.search("'file','(.+?)'", js)
                 if r:
                     return r.group(1)
-            raise Exception ('File Not Found or removed')
+            return self.unresolvable()
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
                                    (e.code, web_url))
-            common.addon.show_small_popup('Error','Http error: '+str(e), 8000, error_logo)
-            return False
+            return self.unresolvable(3, str(e))
         except Exception, e:
             common.addon.log('**** Thefile Error occured: %s' % e)
-            common.addon.show_small_popup(title='[B][COLOR white]THEFILE[/COLOR][/B]', msg='[COLOR red]%s[/COLOR]' % e, delay=5000, image=error_logo)
-            return False
+            return self.unresolvable(0, str(e))
 
     def get_url(self, host, media_id):
-            return 'http://thefile.me/%s' % (media_id)
+        return 'http://thefile.me/%s' % media_id
 
     def get_host_and_id(self, url):
         r = re.match(r'http://(thefile).me/([0-9a-zA-Z]+)', url)
         if r:
             return r.groups()
-        else:
-            return False
-
+        return False
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False

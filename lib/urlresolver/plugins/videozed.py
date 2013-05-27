@@ -1,4 +1,4 @@
-'''
+"""
 Videozed urlresolver plugin
 Copyright (C) 2013 Vinnydude
 
@@ -14,63 +14,64 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-'''
+"""
+
+import re
 
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import re, xbmcgui
+import xbmcgui
 from urlresolver import common
+
 from lib import jsunpack
 
-net = Net()
 
 class VideozedResolver(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver, PluginSettings]
     name = "videozed"
-
 
     def __init__(self):
         p = self.get_setting('priority') or 100
         self.priority = int(p)
         self.net = Net()
 
-
     def get_media_url(self, host, media_id):
         try:
             url = self.get_url(host, media_id)
-            html = self.net.http_GET(url).content
+
             dialog = xbmcgui.DialogProgress()
-            dialog.create('Resolving', 'Resolving Videozed Link...')       
+            dialog.create('Resolving', 'Resolving Videozed Link...')
             dialog.update(0)
+            html = self.net.http_GET(url).content
 
             data = {}
             r = re.findall(r'type="(?:hidden|submit)?" name="(.+?)"\s* value="?(.+?)">', html)
             for name, value in r:
                 data[name] = value
-                
-            html = net.http_POST(url, data).content
+
+            html = self.net.http_POST(url, data).content
 
             captcha = re.compile("left:(\d+)px;padding-top:\d+px;'>&#(.+?);<").findall(html)
             result = sorted(captcha, key=lambda ltr: int(ltr[0]))
-            solution = ''.join(str(int(num[1])-48) for num in result)
+            solution = ''.join(str(int(num[1]) - 48) for num in result)
 
             r = re.findall(r'type="hidden" name="(.+?)" value="(.+?)">', html)
             for name, value in r:
                 data[name] = value
-                data.update({'code':solution})
-            
-            html = net.http_POST(url, data).content
-    
-            sPattern =  '<script type=(?:"|\')text/javascript(?:"|\')>(eval\('
+                data.update({'code': solution})
+
+            html = self.net.http_POST(url, data).content
+
+            sPattern = '<script type=(?:"|\')text/javascript(?:"|\')>(eval\('
             sPattern += 'function\(p,a,c,k,e,d\)(?!.+player_ads.+).+np_vid.+?)'
             sPattern += '\s+?</script>'
             r = re.search(sPattern, html, re.DOTALL + re.IGNORECASE)
             if r:
                 sJavascript = r.group(1)
                 sUnpacked = jsunpack.unpack(sJavascript)
-                sPattern  = '<embed id="np_vid"type="video/divx"src="(.+?)'
+                sPattern = '<embed id="np_vid"type="video/divx"src="(.+?)'
                 sPattern += '"custommode='
                 r = re.search(sPattern, sUnpacked)
                 if r:
@@ -79,37 +80,29 @@ class VideozedResolver(Plugin, UrlResolver, PluginSettings):
                     return r.group(1)
 
             else:
-                    num = re.compile('videozed\|(.+?)\|http').findall(html)
-                    pre = 'http://'+num[0]+'.videozed.com:182/d/'
-                    preb = re.compile('image\|(.+?)\|video\|(.+?)\|').findall(html)
-                    for ext, link in preb:
-                        r = pre+link+'/video.'+ext
-                        dialog.update(100)
-                        dialog.close()
-                        return r
+                num = re.compile('videozed\|(.+?)\|http').findall(html)
+                pre = 'http://' + num[0] + '.videozed.com:182/d/'
+                preb = re.compile('image\|(.+?)\|video\|(.+?)\|').findall(html)
+                for ext, link in preb:
+                    r = pre + link + '/video.' + ext
+                    dialog.update(100)
+                    dialog.close()
+                    return r
 
         except Exception, e:
             common.addon.log('**** Videozed Error occured: %s' % e)
-            common.addon.show_small_popup('Error', str(e), 5000, '')
-            return False
-            
-        
+            return self.unresolvable(0, str(e))
+
     def get_url(self, host, media_id):
-        print 'Videozed: in get_url %s %s' % (host, media_id)
-        return 'http://www.videozed.net/%s' % media_id 
-        
+        return 'http://www.videozed.net/%s' % media_id
 
     def get_host_and_id(self, url):
-        r = re.search('//(.+?)/([0-9a-zA-Z]+)',url)
+        r = re.search('//(.+?)/([0-9a-zA-Z]+)', url)
         if r:
             return r.groups()
-        else:
-            return False
-        return('host', 'media_id')
-
+        return False
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False
-        return (re.match('http://(www.)?videozed.net/' +
-                         '[0-9A-Za-z]+', url) or
-                         'videozed' in host)
+        return (re.match('http://(www.)?videozed.net/[\w]+', url) or
+                'videozed' in host)

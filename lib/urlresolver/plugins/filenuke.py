@@ -16,15 +16,18 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import urllib2
+import re
+import os
+
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import urllib2, re, os
 from urlresolver import common
-from lib import jsunpack
 
-#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDMKR, ELDORADO
+
+#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDSMKR, ELDORADO
 error_logo = os.path.join(common.addon_path, 'resources', 'images', 'redx.png')
 
 
@@ -39,7 +42,6 @@ class FilenukeResolver(Plugin, UrlResolver, PluginSettings):
         #e.g. http://www.filenuke.com/embed-rw52re7f5aul.html
         # http://www.filenuke.com/w8w7ow5nqu7r
         self.pattern = 'http://((?:www.)?filenuke.com)/([0-9a-zA-Z]+)'
-
 
     def get_media_url(self, host, media_id):
         web_url = self.get_url(host, media_id)
@@ -65,7 +67,7 @@ class FilenukeResolver(Plugin, UrlResolver, PluginSettings):
                 p = r[1][0]
                 k = r[1][1]
             else:
-                raise Exception ('File Not Found or removed')
+                return self.unresolvable()
 
             decrypted_data = unpack_js(p, k)
             #First checks for a flv url, then the if statement is for the avi url
@@ -73,24 +75,20 @@ class FilenukeResolver(Plugin, UrlResolver, PluginSettings):
             if not r:
                 r = re.search('src="(.+?)"', decrypted_data)
             if r:
-                stream_url = r.group(1)
+                return r.group(1)
             else:
-                raise Exception ('File Not Found or removed')
-
-            return stream_url
+                return self.unresolvable()
 
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
                                    (e.code, web_url))
-            common.addon.show_small_popup('Error','Http error: '+str(e), 5000, error_logo)
-            return False
+            return self.unresolvable(3, str(e))
         except Exception, e:
             common.addon.log_error('**** Filenuke Error occured: %s' % e)
-            common.addon.show_small_popup(title='[B][COLOR white]FILENUKE[/COLOR][/B]', msg='[COLOR red]%s[/COLOR]' % e, delay=5000, image=error_logo)
-            return False
+            return self.unresolvable()
 
     def get_url(self, host, media_id):
-            return 'http://filenuke.com/%s' % (media_id)# removed www. as it was causing 502 errors.
+        return 'http://filenuke.com/%s' % media_id  # removed www. as it was causing 502 errors.
 
     def get_host_and_id(self, url):
         r = re.search(self.pattern, url)
@@ -99,13 +97,14 @@ class FilenukeResolver(Plugin, UrlResolver, PluginSettings):
         else:
             return False
 
-
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False
         return re.match(self.pattern, url) or self.name in host
-        
+
+
+# TODO: Switch this to use jsunpack
 def unpack_js(p, k):
-    '''emulate js unpacking code'''
+    """emulate js unpacking code"""
     k = k.split('|')
     for x in range(len(k) - 1, -1, -1):
         if k[x]:
@@ -134,4 +133,3 @@ def base36encode(number, alphabet='0123456789abcdefghijklmnopqrstuvwxyz'):
         base36 = alphabet[i] + base36
 
     return sign + base36
-

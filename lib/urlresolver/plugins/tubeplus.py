@@ -17,18 +17,20 @@
 """
 
 import re
-from t0mm0.common.net import Net
 import urllib2
+
+from t0mm0.common.net import Net
 import urlresolver
 from urlresolver import common
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
 
+
 class TubeplusResolver(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver]
     name = "tubeplus.me"
-    
+
     def __init__(self):
         self.net = Net()
 
@@ -39,35 +41,30 @@ class TubeplusResolver(Plugin, UrlResolver, PluginSettings):
             html = self.net.http_GET(web_url).content
         except urllib2.URLError, e:
             common.addon.log_error('tubeplus: got http error %d fetching %s' %
-                                    (e.code, web_url))
-            return False
-            
-        r = '"none" href="(.+?)"'
-        sources = []
-        regex = re.finditer(r, html, re.DOTALL)
+                                   (e.code, web_url))
+            return self.unresolvable(3, str(e))
 
-        for s in regex:
-            sources.append(urlresolver.HostedMediaFile(url=s.group(1))) 
-        
+        r = '"none" href="(.+?)"'
+        regex = re.finditer(r, html, re.DOTALL)
+        sources = [urlresolver.HostedMediaFile(url=s.group(1)) for s in regex]
+
+        # Inception?
         source = urlresolver.choose_source(sources)
-        
+
         if source:
             stream_url = source.resolve()
         else:
             stream_url = ''
         return stream_url
 
-
     def get_url(self, host, media_id):
         return 'http://tubeplus.me/player/%s/' % media_id
-        
-        
+
     def get_host_and_id(self, url):
         r = re.search('//(.+?)/player/(\d+)', url)
         if r:
             return r.groups()
-        else:
-            return False
+        return False
 
     def get_settings_xml(self):
         xml = PluginSettings.get_settings_xml(self)
@@ -75,6 +72,6 @@ class TubeplusResolver(Plugin, UrlResolver, PluginSettings):
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False
-        return re.match('http://(www.)?tubeplus.me/player/\d+', 
+        return re.match('http://(www.)?tubeplus.me/player/\d+',
                         url) or 'tubeplus' in host
 

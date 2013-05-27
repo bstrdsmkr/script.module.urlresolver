@@ -14,23 +14,27 @@
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
-"""
 
-"""
+
 RogerThis - 14/8/2011
 Site: http://www.movshare.net
 movshare hosts both avi and flv videos
 """
 
-import re, urllib2, os
+import re
+import urllib2
+import os
+
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
 from urlresolver import common
 
-#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDMKR, ELDORADO
+
+#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDSMKR, ELDORADO
 error_logo = os.path.join(common.addon_path, 'resources', 'images', 'redx.png')
+
 
 class MovshareResolver(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver, PluginSettings]
@@ -40,7 +44,6 @@ class MovshareResolver(Plugin, UrlResolver, PluginSettings):
         p = self.get_setting('priority') or 100
         self.priority = int(p)
         self.net = Net()
-        
 
     def get_media_url(self, host, media_id):
         web_url = self.get_url(host, media_id)
@@ -60,31 +63,26 @@ class MovshareResolver(Plugin, UrlResolver, PluginSettings):
             if r:
                 stream_url = r.group(1)
             else:
-                raise Exception ('File Not Found or removed')
-                                    
+                return self.unresolvable()
+
             return stream_url
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
                                    (e.code, web_url))
-            common.addon.show_small_popup('Error','Http error: '+str(e), 5000, error_logo)
-            return False
+            return self.unresolvable(3, str(e))
         except Exception, e:
             common.addon.log_error('**** Movshare Error occured: %s' % e)
-            common.addon.show_small_popup(title='[B][COLOR white]MOVSHARE[/COLOR][/B]', msg='[COLOR red]%s[/COLOR]' % e, delay=5000, image=error_logo)
-            return False
-        
+            return self.unresolvable(0, str(e))
 
     def get_url(self, host, media_id):
         return 'http://www.movshare.net/video/%s' % media_id
-        
-        
+
     def get_host_and_id(self, url):
-        r = re.search('//(.+?)/video/([0-9a-z]+)', url)
+        r = re.search('//(.+?)/video/([\w]+)', url)
         if r:
             return r.groups()
         else:
             return False
-
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False

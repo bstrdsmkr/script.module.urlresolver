@@ -13,7 +13,7 @@
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>. '''
- 
+
 import urllib2,re
 __version__ = "1.0.0"
 
@@ -44,8 +44,8 @@ class Megavideo:
 		l = len(reference)
 		if(l > 8):
 			reference = reference[l-8 : l]
-	
-		xml_url = self.URL+"?v="+str(reference)		
+
+		xml_url = self.URL+"?v="+str(reference)
 		self.XML_FILE = urllib2.urlopen(xml_url).read()
 
 	def getLink(self):
@@ -92,7 +92,7 @@ class Megavideo:
 
 		try: 	self.runtime
 		except:	self.info["Runtime"] = self.getRuntime()
-		else:	self.info["Runtime"] = self.runtime	
+		else:	self.info["Runtime"] = self.runtime
 
 		return self.info
 

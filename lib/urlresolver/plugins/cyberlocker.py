@@ -1,4 +1,4 @@
-'''
+"""
 Cyberlocker urlresolver plugin
 Copyright (C) 2013 Vinnydude
 
@@ -14,62 +14,66 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-'''
+"""
+
+import re
+import os
+import urllib2
 
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
-import re, os, urllib2
 import xbmcgui
 from urlresolver import common
+
 from lib import jsunpack
 
-#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDMKR, ELDORADO
+
+#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDSMKR, ELDORADO
 error_logo = os.path.join(common.addon_path, 'resources', 'images', 'redx.png')
 
 net = Net()
 
+
 class CyberlockerResolver(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver, PluginSettings]
     name = "cyberlocker"
-
 
     def __init__(self):
         p = self.get_setting('priority') or 100
         self.priority = int(p)
         self.net = Net()
 
-
     def get_media_url(self, host, media_id):
         try:
             url = self.get_url(host, media_id)
             html = self.net.http_GET(url).content
-            r = re.findall('<center><h3>File Not Found</h3></center><br>',html,re.I)
+            r = re.findall('<center><h3>File Not Found</h3></center><br>', html, re.I)
             if r:
-                raise Exception ('File Not Found or removed')
+                return self.unresolvable(1, 'File Not Found or removed')
             if not r:
                 dialog = xbmcgui.DialogProgress()
-                dialog.create('Resolving', 'Resolving Cyberlocker Link...')       
+                dialog.create('Resolving', 'Resolving Cyberlocker Link...')
                 dialog.update(0)
-    
+
                 data = {}
                 r = re.findall(r'type="hidden" name="(.+?)"\s* value="?(.+?)">', html)
                 for name, value in r:
                     data[name] = value
                     data['method_free'] = 'Wait for 0 seconds'
-                
+
             html = net.http_POST(url, data).content
             dialog.update(50)
-            
-            sPattern =  '<script type=(?:"|\')text/javascript(?:"|\')>(eval\('
+
+            sPattern = '<script type=(?:"|\')text/javascript(?:"|\')>(eval\('
             sPattern += 'function\(p,a,c,k,e,d\)(?!.+player_ads.+).+np_vid.+?)'
             sPattern += '\s+?</script>'
             r = re.search(sPattern, html, re.DOTALL + re.IGNORECASE)
             if r:
                 sJavascript = r.group(1)
                 sUnpacked = jsunpack.unpack(sJavascript)
-                sPattern  = '<embed id="np_vid"type="video/divx"src="(.+?)'
+                sPattern = '<embed id="np_vid"type="video/divx"src="(.+?)'
                 sPattern += '"custommode='
                 r = re.search(sPattern, sUnpacked)
                 if r:
@@ -79,37 +83,32 @@ class CyberlockerResolver(Plugin, UrlResolver, PluginSettings):
 
             else:
                 num = re.compile('cyberlocker\|(.+?)\|http').findall(html)
-                pre = 'http://'+num[0]+'.cyberlocker.ch:182/d/'
+                pre = 'http://' + num[0] + '.cyberlocker.ch:182/d/'
                 preb = re.compile('image\|(.+?)\|video\|(.+?)\|').findall(html)
                 for ext, link in preb:
-                    r = pre+link+'/video.'+ext
+                    r = pre + link + '/video.' + ext
                     dialog.update(100)
                     dialog.close()
                     return r
-                
+
         except urllib2.URLError, e:
-            common.addon.log_error(self.name + ': got http error %d fetching %s' %
-                                   (e.code, web_url))
-            common.addon.show_small_popup('Error','Http error: '+str(e), 8000, error_logo)
-            return False
-        
+            return self.unresolvable(3, str(e))
+
         except Exception, e:
             common.addon.log('**** Cyberlocker Error occured: %s' % e)
-            common.addon.show_small_popup(title='[B][COLOR white]CYBERLOCKER[/COLOR][/B]', msg='[COLOR red]%s[/COLOR]' % e, delay=5000, image=error_logo)
+            common.addon.show_small_popup(title='[B][COLOR white]CYBERLOCKER[/COLOR][/B]',
+                                          msg='[COLOR red]%s[/COLOR]' % e, delay=5000, image=error_logo)
             return False
-        
+
     def get_url(self, host, media_id):
-        return 'http://cyberlocker.ch/%s' % media_id 
-        
+        return 'http://cyberlocker.ch/%s' % media_id
 
     def get_host_and_id(self, url):
-        r = re.search('//(.+?)/([0-9a-zA-Z]+)',url)
+        r = re.search('//(.+?)/([0-9a-zA-Z]+)', url)
         if r:
             return r.groups()
         else:
             return False
-        return('host', 'media_id')
-
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False

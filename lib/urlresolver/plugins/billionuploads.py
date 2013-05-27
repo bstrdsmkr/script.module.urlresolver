@@ -1,4 +1,4 @@
-'''
+"""
 Billionuploads urlresolver plugin
 Copyright (C) 2013 jas0npc
 
@@ -14,18 +14,25 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-'''
+"""
 
-import re, xbmcgui, time, os
+import re
+import time
+import os
+import xbmc
+
+import xbmcgui
 from urlresolver import common
 from t0mm0.common.net import Net
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
+
 net = Net()
 
-#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDMKR, ELDORADO
+#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDSMKR, ELDORADO
 error_logo = os.path.join(common.addon_path, 'resources', 'images', 'redx.png')
+
 
 class billionuploads(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver, PluginSettings]
@@ -46,7 +53,7 @@ class billionuploads(Plugin, UrlResolver, PluginSettings):
             html = net.http_GET(url).content
             if re.search('File Not Found', html):
                 common.addon.log_error('BillionUploads - File Not Found')
-                raise Exception ('File Not Found or removed')
+                return self.unresolvable(1, 'File Not Found or removed')
             common.addon.show_countdown(3, title='BillionUploads', text='Loading Video...')
             
             data = {}
@@ -69,7 +76,7 @@ class billionuploads(Plugin, UrlResolver, PluginSettings):
                 kb.doModal()
                 capcode = kb.getText()
         
-                if (kb.isConfirmed()):
+                if kb.isConfirmed():
                     userInput = kb.getText()
                     if userInput != '':
                         capcode = kb.getText()
@@ -82,7 +89,7 @@ class billionuploads(Plugin, UrlResolver, PluginSettings):
                 dialog.close() 
                 dialog.create('Resolving', 'Resolving BillionUploads Link...') 
                 dialog.update(50)
-                data.update({'code':capcode})
+                data.update({'code': capcode})
 
             else:  
                 dialog.create('Resolving', 'Resolving BillionUploads Link...') 
@@ -111,7 +118,6 @@ class billionuploads(Plugin, UrlResolver, PluginSettings):
             return r.groups()
         else:
             return False
-        return ('host', 'media_id')
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False

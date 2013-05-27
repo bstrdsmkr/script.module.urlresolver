@@ -16,16 +16,22 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import re, urllib2, os
+import re
+import urllib2
+import os
+
 from t0mm0.common.net import Net
 from urlresolver import common
 from urlresolver.plugnplay.interfaces import UrlResolver
 from urlresolver.plugnplay.interfaces import PluginSettings
 from urlresolver.plugnplay import Plugin
+
 from vidxden import unpack_js
 
-#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDMKR, ELDORADO
+
+#SET ERROR_LOGO# THANKS TO VOINAGE, BSTRDSMKR, ELDORADO
 error_logo = os.path.join(common.addon_path, 'resources', 'images', 'redx.png')
+
 
 class vidpeResolver(Plugin, UrlResolver, PluginSettings):
     implements = [UrlResolver, PluginSettings]
@@ -40,12 +46,12 @@ class vidpeResolver(Plugin, UrlResolver, PluginSettings):
         try:
             html = self.net.http_GET(web_url).content
 
-            page = ''.join(html.splitlines()).replace('\t','')
+            page = ''.join(html.splitlines()).replace('\t', '')
             r = re.search("return p\}\(\'(.+?)\',\d+,\d+,\'(.+?)\'", page)
             if r:
                 p, k = r.groups()
             else:
-                raise Exception ('packed javascript embed code not found')
+                return self.unresolvable(0, 'packed javascript embed code not found')
 
             decrypted_data = unpack_js(p, k)
             r = re.search('file.\',.\'(.+?).\'', decrypted_data)
@@ -54,27 +60,23 @@ class vidpeResolver(Plugin, UrlResolver, PluginSettings):
             if r:
                 stream_url = r.group(1)
             else:
-                raise Exception ('File Not Found or removed')
+                return self.unresolvable(0, 'File Not Found or removed')
 
             return stream_url
 
         except urllib2.URLError, e:
             common.addon.log_error(self.name + ': got http error %d fetching %s' %
                                    (e.code, web_url))
-            common.addon.show_small_popup('Error','Http error: '+str(e), 8000, error_logo)
-            return False
+            return self.unresolvable(3, str(e))
         except Exception, e:
             common.addon.log('**** Vidpe Error occured: %s' % e)
-            common.addon.show_small_popup(title='[B][COLOR white]VIDPE[/COLOR][/B]', msg='[COLOR red]%s[/COLOR]' % e, delay=5000, image=error_logo)
-            return False
-
+            return self.unresolvable(0, str(e))
 
     def get_url(self, host, media_id):
         if 'vidpe' in host or 'hostingcup' in host:
-            return 'http://'+host+'/%s.html' % media_id
+            return 'http://' + host + '/%s.html' % media_id
         else:
-            return 'http://'+host+'/%s' % media_id
-
+            return 'http://' + host + '/%s' % media_id
 
     def get_host_and_id(self, url):
         r = re.search('http://(.+?)/embed-([\w]+)-', url)
@@ -90,19 +92,18 @@ class vidpeResolver(Plugin, UrlResolver, PluginSettings):
                     return r.groups()
                 else:
                     return False
-    
-        
+
     def get_domain(self, url):
         tmp = re.compile('//(.+?)/').findall(url)
         if len(tmp) == 0:
             return False
         domain = tmp[0].replace('www.', '')
-        print 'domain is %s ' % domain
         return domain
 
     def valid_url(self, url, host):
         if self.get_setting('enabled') == 'false': return False
-        return re.search('http://(.+)?(vidpe|hostingcup|hostingbulk).com/.+?.html',url) or 'vidpe' in host or 'hostingbulk' in host or 'hostingcup' in host
+        return re.search('http://(.+)?(vidpe|hostingcup|hostingbulk).com/.+?.html',
+                         url) or 'vidpe' in host or 'hostingbulk' in host or 'hostingcup' in host
 
     def get_settings_xml(self):
         xml = PluginSettings.get_settings_xml(self)
